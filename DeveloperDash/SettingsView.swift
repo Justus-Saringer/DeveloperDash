@@ -4,6 +4,8 @@ struct SettingsView: View {
     @ObservedObject var bitbucketViewModel: BitBucketViewModel
     @Environment(\.dismiss) private var dismiss
     
+    @State private var newRepoName: String = ""
+    
     var body: some View {
         VStack(spacing: 20) {
             Form {
@@ -22,32 +24,55 @@ struct SettingsView: View {
                         Text("Workspace")
                     }
                     .disableAutocorrection(true)
-                    
-                    TextField(text: $bitbucketViewModel.repoSlug) {
-                        Text("Repo")
+                }
+                
+                Section("Repositories") {
+                    ForEach(bitbucketViewModel.repositories, id: \.self) { repo in
+                        HStack {
+                            Text(repo)
+                            Spacer()
+                            Button {
+                                withAnimation {
+                                    bitbucketViewModel.repositories.removeAll(where: { $0 == repo })
+                                    bitbucketViewModel.persistRepositories()
+                                }
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                        }
                     }
-                    .disableAutocorrection(true)
+                    
+                    HStack {
+                        TextField("new repository", text: $newRepoName)
+                            .disableAutocorrection(true)
+                        Button(action: {
+                            withAnimation {
+                                bitbucketViewModel.repositories.append(newRepoName)
+                                bitbucketViewModel.persistRepositories()
+                                newRepoName = ""
+                            }
+                        }) {
+                            Image(systemName: "plus.circle.fill")
+                        }.disabled(newRepoName.isEmpty)
+                    }
                 }
                 
                 Section {
-                    Toggle(isOn: $bitbucketViewModel.showOnlyAuthorsPRs) {
+                    Toggle(isOn: $bitbucketViewModel.showAuthorsPRs) {
                         Text("Only show my PRs")
                     }
                 }
             }
+            .frame(width: 400)
             .formStyle(.grouped)
             .padding()
-            
-            HStack {
-                Spacer()
-                Button("Save") {
-                    bitbucketViewModel.submit()
-                    dismiss()
-                }
-                .keyboardShortcut(.return, modifiers: .command)
-            }
-            .padding(.horizontal)
         }
-        .frame(minWidth: 400, minHeight: 300)
+        .frame(minWidth: 500, minHeight: 400)
     }
-} 
+}
+
+#if DEBUG
+#Preview {
+    SettingsView(bitbucketViewModel: BitBucketViewModel())
+}
+#endif

@@ -5,9 +5,7 @@ struct DeveloperDashApp: App {
     @NSApplicationDelegateAdaptor((AppDelegate).self) private var appDelegate
     
     var body: some Scene {
-        WindowGroup {
-            ContentView(bitbucketViewModel: BitBucketViewModel())
-        }
+        WindowGroup {}
     }
 }
 
@@ -27,6 +25,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         }
 
         setUpPopover()
+        setUpShortCutObserver()
     }
     
     @objc private func setUpPopover() {
@@ -34,6 +33,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
         self.popover.contentSize = NSSize(width: 480, height: 300)
         self.popover.behavior = .transient
         self.popover.contentViewController = NSHostingController(rootView: ContentView(bitbucketViewModel: bitBucketViewModel))
+    }
+    
+    @objc private func setUpShortCutObserver() {
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            if event.modifierFlags.contains(.command) && event.keyCode == 43 { // 43 is the keyCode for comma
+                self.showSettings()
+                return nil
+            }
+            return event
+        }
     }
 
     @objc func statusItemClicked(_ sender: NSStatusBarButton) {
@@ -89,6 +98,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, ObservableObject {
             window.contentViewController = NSHostingController(rootView: settingsView)
             window.title = "Settings"
             window.makeKeyAndOrderFront(nil)
+            window.isReleasedWhenClosed = false
             settingsWindow = window
         } else {
             settingsWindow?.makeKeyAndOrderFront(nil)

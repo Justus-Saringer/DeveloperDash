@@ -3,13 +3,16 @@ import SwiftUI
 import Combine
 
 final class BitBucketViewModel: ObservableObject {
-    @Published var areCredentialsVisible: Bool = false
-    @Published var username: String = ""
-    @Published var appPassword: String = ""
-    @Published var workspace: String = ""
-    @Published var repoSlug: String = ""
-    @Published var showLoadingIndicator: Bool = false
-    @Published var showOnlyAuthorsPRs: Bool = false
+    @Published var areCredentialsVisible = false
+    @Published var username = ""
+    @Published var appPassword = ""
+    @Published var workspace = ""
+    @Published var repositories: [String] = []
+    @Published var selectedRepo = ""
+
+    @Published var showLoadingIndicator = false
+    @Published var showAuthorsPRs = false
+    @Published var showAuthorAsReviewerPRs = false
     
     @Published var pullRequestResponse: PullRequestResponse?
     
@@ -23,12 +26,7 @@ final class BitBucketViewModel: ObservableObject {
     }
 
     func submit() {
-        let defaults = UserDefaults.standard
-        defaults.set(username, forKey: "bitbucket_username")
-        defaults.set(appPassword, forKey: "bitbucket_app_password")
-        defaults.set(workspace, forKey: "bitbucket_workspace")
-        defaults.set(repoSlug, forKey: "bitbucket_repo_slug")
-        defaults.set(showOnlyAuthorsPRs, forKey: "bitbucket_show_only_authors_prs")
+        persistAllFields()
         
         Task {
             await fetchOpenPullRequests()
@@ -94,7 +92,7 @@ final class BitBucketViewModel: ObservableObject {
     
     private func createPRRequest() -> URLRequest? {
         let queries = createQueries()
-        let urlString = "https://api.bitbucket.org/2.0/repositories/\(workspace)/\(repoSlug)/pullrequests" + queries
+        let urlString = "https://api.bitbucket.org/2.0/repositories/\(workspace)/\(repositories)/pullrequests" + queries
         
         guard let url = URL(string: urlString) else {
             print("Invalid URL")
@@ -111,9 +109,10 @@ final class BitBucketViewModel: ObservableObject {
     }
     
     private func createQueries() -> String {
-        let authorQuery = showOnlyAuthorsPRs ? "?q=author.username=\"\(username)\" AND state=\"OPEN\"" : ""
+        let authorQuery = showAuthorsPRs ? "q=author.username=\"\(username)\" AND state=\"OPEN\"" : ""
+        let authorAsReviewerQuery = showAuthorAsReviewerPRs ? "q=participants.username=\"\(username)\" AND state=\"OPEN\" AND " : ""
+        let appendSign = showAuthorsPRs ? "&" : "?"
         
-        let appendSign = showOnlyAuthorsPRs ? "&" : "?"
         let valuesQuery = "fields=values.type,values.links,values.id,values.title," +
         "values.state,values.author,values.merge_commit,values.comment_count," +
         "values.task_count,values.created_on,values.updated_on,values.reviewers,values.participants"
@@ -132,11 +131,29 @@ final class BitBucketViewModel: ObservableObject {
         if let savedWorkspace = defaults.string(forKey: "bitbucket_workspace") {
             workspace = savedWorkspace
         }
-        if let savedRepoSlug = defaults.string(forKey: "bitbucket_repo_slug") {
-            repoSlug = savedRepoSlug
+        if let savedRepositories = defaults.stringArray(forKey: "bitbucket_repositories") {
+            repositories = savedRepositories
+        }
+        if let savedSelectedRepo = defaults.string(forKey: "bitbucket_selected_repo") {
+            selectedRepo = savedSelectedRepo
         }
         let savedShowOnlyAuthorsPRs = defaults.bool(forKey: "bitbucket_show_only_authors_prs")
-        showOnlyAuthorsPRs = savedShowOnlyAuthorsPRs
+        showAuthorsPRs = savedShowOnlyAuthorsPRs
+    }
+    
+    private func persistAllFields() {
+        let defaults = UserDefaults.standard
+        defaults.set(username, forKey: "bitbucket_username")
+        defaults.set(appPassword, forKey: "bitbucket_app_password")
+        defaults.set(workspace, forKey: "bitbucket_workspace")
+        defaults.set(repositories, forKey: "bitbucket_repositories")
+        defaults.set(selectedRepo, forKey: "bitbucket_selected_repo")
+        defaults.set(showAuthorsPRs, forKey: "bitbucket_show_only_authors_prs")
+    }
+    
+    func persistRepositories() {
+        let defaults = UserDefaults.standard
+        defaults.set(repositories, forKey: "bitbucket_repositories")
     }
     
     private func resetPullRequests() async {
